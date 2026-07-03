@@ -8,7 +8,49 @@ MoA 让多个「参考模型」并行给出建议，再由一个「聚合模型�
 - **聚合模型（aggregator）**：真正干活的模型。它拿到所有参考模型的原始建议后，作为正常的 acting model 一次性消化——带完整工具 schema、执行工具、多轮迭代、流式输出，与任何普通模型调用一致。
 - **不是新命令**：MoA 注册成一个**虚拟 model provider**，每个 preset 是它下面的一个可选 model。`/model`、model picker、config 全部照常工作。
 
-## 二、快速开始
+## 二、从源码安装（MoA 版本）
+
+带 MoA 功能的 cz-cli 目前只在这个 fork 的分支上，需要从源码构建后装到本地。
+
+> ⚠️ 当前 `build:local` 脚本只构建 **macOS Apple Silicon（darwin-arm64）** 的二进制。其它平台需要自行调整 `packages/opencode/script/build.ts` 的构建目标。
+
+### 前置依赖
+
+- [Bun](https://bun.sh)（仓库使用 `bun@1.3.11`，装最新稳定版即可）
+- Git；macOS 需要 Xcode Command Line Tools（`xcode-select --install`）以使用 `codesign`
+
+### 1. 克隆 fork 分支
+
+```bash
+git clone -b feature/moa-mixture-of-agents https://github.com/guantoubaozi/cz-cli.git
+cd cz-cli
+```
+
+### 2. 安装依赖并构建
+
+```bash
+bun install
+cd packages/cz-cli
+bun run build:local
+```
+
+构建产物在 `packages/cz-cli/dist/cz-cli`（已做 ad-hoc codesign）。脚本末尾若出现 `is already signed` 报错属已知无害现象——二进制已生成并通过 smoke test。
+
+### 3. 装到 PATH
+
+把产物拷到 PATH 里的目录（例如 `~/.local/bin`），macOS 上重新 ad-hoc 签名一次：
+
+```bash
+cp dist/cz-cli ~/.local/bin/cz-cli
+codesign --force --sign - ~/.local/bin/cz-cli
+cz-cli --version   # 形如 0.0.0-feature/moa-mixture-of-agents-<时间戳>
+```
+
+> 确保 `~/.local/bin` 在你的 `PATH` 中（`echo $PATH` 检查；否则在 shell 配置里 `export PATH="$HOME/.local/bin:$PATH"`）。
+
+装好后再按下面的「三、快速开始」配置 MoA。
+
+## 三、快速开始
 
 ### 1. 编辑配置文件
 
@@ -35,7 +77,7 @@ aggregator = "clickzetta/anthropic/claude-sonnet-4.6"
 3. 在列表底部的 **"Mixture of Agents"** 分组下选择 **`MoA: default`**
 4. 正常提问即可
 
-## 三、model 字符串怎么写（重要）
+## 四、model 字符串怎么写（重要）
 
 MoA 里 `reference_models` 和 `aggregator` 的 model 字符串，**必须带完整的 provider 前缀**，格式为 `<provider>/<model>`。
 
@@ -55,7 +97,7 @@ provider 名来自你 `profiles.toml` 里 `[llm.<名字>]` 的名字；model id 
 
 **前提条件**：MoA 的 aggregator/reference 引用的模型，必须是已经在 `/model` 里能选到、且**在你的环境里能正常调用**的模型。如果某个模型直连都调不通（超时 / 400 `GATEWAY_NO_UPSTREAM_CANDIDATES`），用它做 aggregator 也不会有产出。
 
-## 四、配置字段说明
+## 五、配置字段说明
 
 | 字段 | 必填 | 说明 |
 |---|---|---|
@@ -66,7 +108,7 @@ provider 名来自你 `profiles.toml` 里 `[llm.<名字>]` 的名字；model id 
 | `presets.<名字>.enabled` | 否 | 设为 `false` 时跳过参考模型 fan-out，聚合模型单独行动 |
 | `presets.<名字>.max_tokens` | 否 | 参考模型的输出上限；不设则用模型最大值 |
 
-## 五、多视角配置示例
+## 六、多视角配置示例
 
 真正的 MoA 价值在于**不同**的参考模型给出多个视角。当你有多个可用模型时，可以这样配：
 
@@ -86,7 +128,7 @@ aggregator = "clickzetta/anthropic/claude-sonnet-4.6"
 
 > 只用一个模型同时做 reference 和 aggregator 也能工作，但多视角效果有限——参考模型和聚合模型用**不同**模型才更能体现 MoA 的价值。
 
-## 六、常见问题
+## 七、常见问题
 
 **Q：`/model` 里看不到 MoA？**
 - 确认 MoA 配置写在 `~/.clickzetta/profiles.toml` 的顶层 `[moa]` 段里（写在 `czcli.json` / `opencode.json` 会被忽略）。
